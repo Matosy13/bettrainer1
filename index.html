@@ -25,7 +25,13 @@
             const [isParlayMode, setIsParlayMode] = React.useState(false);
             const [stakeAmount, setStakeAmount] = React.useState('1000');
 
-            // Загрузка сохраненных данных при старте
+            // Настройки JSONbin
+            const [cloudKey, setCloudKey] = React.useState(localStorage.getItem('bettrainer_cloud_key') || '');
+            const [cloudBinId, setCloudBinId] = React.useState(localStorage.getItem('bettrainer_cloud_bin') || '');
+            const [isCloudModalOpen, setIsCloudModalOpen] = React.useState(false);
+            const [syncStatus, setSyncStatus] = React.useState('Локальный режим');
+
+            // Загрузка сохраненных данных при старте (сначала из облака, если настроено, иначе из localStorage)
             React.useEffect(() => {
                 const savedBank = localStorage.getItem('bettrainer_bank');
                 const savedBets = localStorage.getItem('bettrainer_bets');
@@ -33,15 +39,76 @@
                 if (savedBets) {
                     try { setBets(JSON.parse(savedBets)); } catch(e) {}
                 }
+
+                if (cloudKey && cloudBinId) {
+                    loadFromCloud(cloudKey, cloudBinId);
+                }
             }, []);
 
-            // Автосохранение
+            // Автосохранение локально
             React.useEffect(() => {
                 localStorage.setItem('bettrainer_bank', bank);
                 localStorage.setItem('bettrainer_bets', JSON.stringify(bets));
+                
+                // Если настроено облако — автосохранение при изменениях
+                if (cloudKey && cloudBinId) {
+                    saveToCloud(bank, bets, cloudKey, cloudBinId);
+                }
             }, [bank, bets]);
 
-            // Универсальная функция добавления в экспресс
+            const saveToCloud = async (currentBank, currentBets, key, binId) => {
+                setSyncStatus('Синхронизация...');
+                try {
+                    const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Master-Key': key
+                        },
+                        body: JSON.stringify({ bank: currentBank, bets: currentBets })
+                    });
+                    if (response.ok) {
+                        setSyncStatus('☁️ В облаке');
+                    } else {
+                        setSyncStatus('⚠️ Ошибка облака');
+                    }
+                } catch (e) {
+                    setSyncStatus('⚠️ Нет сети');
+                }
+            };
+
+            const loadFromCloud = async (key, binId) => {
+                setSyncStatus('Загрузка из облака...');
+                try {
+                    const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+                        headers: {
+                            'X-Master-Key': key
+                        }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.record) {
+                            if (typeof data.record.bank === 'number') setBank(data.record.bank);
+                            if (Array.isArray(data.record.bets)) setBets(data.record.bets);
+                            setSyncStatus('☁️ Синхронизировано');
+                        }
+                    } else {
+                        setSyncStatus('⚠️ Ошибка загрузки');
+                    }
+                } catch (e) {
+                    setSyncStatus('⚠️ Ошибка сети');
+                }
+            };
+
+            const saveCloudSettings = () => {
+                localStorage.setItem('bettrainer_cloud_key', cloudKey);
+                localStorage.setItem('bettrainer_cloud_bin', cloudBinId);
+                setIsCloudModalOpen(false);
+                if (cloudKey && cloudBinId) {
+                    loadFromCloud(cloudKey, cloudBinId);
+                }
+            };
+
             const addToParlayCustom = (matchName, selectionName, oddsVal) => {
                 const oddsNum = parseFloat(oddsVal);
                 if (isNaN(oddsNum) || oddsNum <= 1) {
@@ -117,7 +184,6 @@
                 }));
             };
 
-            // Функция удаления ставки (с возвратом суммы на баланс, если она была в игре)
             const deleteBet = (betId) => {
                 const betToDelete = bets.find(b => b.id === betId);
                 if (betToDelete && betToDelete.status === 'pending') {
@@ -170,6 +236,9 @@
                             <div className="flex items-center gap-2">
                                 <span className="bg-emerald-500 text-slate-950 font-black px-2.5 py-1 rounded-lg text-xs uppercase tracking-wider">PRO</span>
                                 <h1 className="text-2xl font-black tracking-tight text-white">BetTrainer Pro</h1>
+                                <button onClick={() => setIsCloudModalOpen(true)} className="ml-2 bg-slate-800 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg text-slate-300 transition flex items-center gap-1.5 border border-slate-700">
+                                    <span>{syncStatus}</span> ⚙️
+                                </button>
                             </div>
                             <p className="text-slate-400 text-sm mt-1">Тренажер ставок и учета банкролла без риска реальных денег</p>
                         </div>
@@ -183,6 +252,34 @@
                             </button>
                         </div>
                     </header>
+
+                    {/* МОДАЛЬНОЕ ОКНО ОБЛАКА */}
+                    {isCloudModalOpen && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+                                <h3 className="text-lg font-bold text-white">☁️ Синхронизация между устройствами</h3>
+                                <p className="text-xs text-slate-400">
+                                    Введите ключи от бесплатного хранилища <a href="https://jsonbin.io/" target="_blank" className="text-emerald-400 underline">jsonbin.io</a>, чтобы ваш банк и ставки синхронизировались на телефоне и компьютере.
+                                </p>
+                                <div>
+                                    <label className="text-xs text-slate-400 font-semibold mb-1 block">API Key (Master Key)</label>
+                                    <input type="text" value={cloudKey} onChange={(e) => setCloudKey(e.target.value)} placeholder="$2a$10$..." className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500" />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-slate-400 font-semibold mb-1 block">Bin ID</label>
+                                    <input type="text" value={cloudBinId} onChange={(e) => setCloudBinId(e.target.value)} placeholder="64a1b2..." className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500" />
+                                </div>
+                                <div className="flex gap-3 pt-2">
+                                    <button onClick={saveCloudSettings} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs transition">
+                                        Сохранить и подключить
+                                    </button>
+                                    <button onClick={() => setIsCloudModalOpen(false)} className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 px-4 rounded-xl text-xs transition">
+                                        Закрыть
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* НАВИГАЦИЯ */}
                     <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3">
@@ -460,7 +557,6 @@
                                                             <button onClick={() => resolveBet(bet.id, 'return')} className="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition">Возврат 🔄</button>
                                                         </>
                                                     )}
-                                                    {/* Кнопка удаления ставки */}
                                                     <button onClick={() => deleteBet(bet.id)} className="bg-slate-800 hover:bg-red-600/30 hover:border-red-500 text-slate-400 hover:text-red-300 px-3 py-2 rounded-lg text-xs font-bold transition border border-slate-700" title="Удалить ставку">
                                                         🗑️ Удалить
                                                     </button>
