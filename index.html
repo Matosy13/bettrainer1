@@ -41,7 +41,7 @@
                 localStorage.setItem('bettrainer_bets', JSON.stringify(bets));
             }, [bank, bets]);
 
-            // Универсальная функция добавления в экспресс (из конструктора или линии)
+            // Универсальная функция добавления в экспресс
             const addToParlayCustom = (matchName, selectionName, oddsVal) => {
                 const oddsNum = parseFloat(oddsVal);
                 if (isNaN(oddsNum) || oddsNum <= 1) {
@@ -117,6 +117,15 @@
                 }));
             };
 
+            // Функция удаления ставки (с возвратом суммы на баланс, если она была в игре)
+            const deleteBet = (betId) => {
+                const betToDelete = bets.find(b => b.id === betId);
+                if (betToDelete && betToDelete.status === 'pending') {
+                    setBank(prev => prev + betToDelete.amount);
+                }
+                setBets(bets.filter(b => b.id !== betId));
+            };
+
             const resolveParlayItem = (betId, itemId, itemOutcome) => {
                 setBets(bets.map(bet => {
                     if (bet.id === betId && bet.status === 'pending') {
@@ -187,11 +196,11 @@
 
                     {activeTab === 'trainer' ? (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* ЛЕВАЯ КОЛОНКА: КОНСТРУКТОР СТАВОК */}
+                            {/* ЛЕВАЯ КОЛОНКА */}
                             <div className="lg:col-span-2 space-y-6">
                                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
-                                    <h2 className="text-lg font-bold text-white mb-4 flex items-center justify-between">
-                                        <span>⚡ Конструктор ставки (Свой матч или из линии)</span>
+                                    <h2 className="text-lg font-bold text-white mb-4">
+                                        ⚡ Конструктор ставки (Свой матч или из линии)
                                     </h2>
 
                                     {/* ВЫБОР КАТЕГОРИИ */}
@@ -245,14 +254,14 @@
                                             ['ИТБ1 (1.5)', '2.05'], ['ИТБ2 (1.5)', '2.40'],
                                             ['Гол в 1 тайме', '1.38'], ['Тотал четный', '1.90']
                                         ].map(([name, odds]) => (
-                                            <button key={name} onClick={() => { setQuickStakeName(name); setQuickOdds(odds); }} className={`p-3 rounded-xl border text-left transition ${quickSelectionType === name ? 'bg-emerald-500/10 border-emerald-500 text-emerald-300' : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'}`}>
+                                            <button key={name} onClick={() => { setQuickStakeName(name); setQuickOdds(odds); }} className={`p-3 rounded-xl border text-left transition ${quickStakeName === name ? 'bg-emerald-500/10 border-emerald-500 text-emerald-300' : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'}`}>
                                                 <div className="text-xs font-medium truncate">{name}</div>
                                                 <div className="text-base font-black text-white mt-1">{odds}</div>
                                             </button>
                                         ))}
                                     </div>
 
-                                    {/* ВВОД МАТЧА, КЭФА И КНОПКА ДОБАВЛЕНИЯ В ЭКСПРЕСС */}
+                                    {/* ВВОД МАТЧА И КЭФА */}
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800 items-end">
                                         <div>
                                             <label className="text-xs text-slate-400 font-semibold mb-1 block">Название матча</label>
@@ -270,10 +279,10 @@
                                     </div>
                                 </div>
 
-                                {/* МАТЧИ ИЗ ЛИНИИ (С ВОЗМОЖНОСТЬЮ КЛИКА И ДОБАВЛЕНИЯ В ЭКСПРЕСС) */}
+                                {/* БЫСТРАЯ ЛИНИЯ */}
                                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
-                                    <h2 className="text-lg font-bold text-white mb-2">⚽ Быстрая линия (Ввод произвольного матча)</h2>
-                                    <p className="text-xs text-slate-400 mb-4">Смотрите матч на Flashscore / ТВ, вбивайте его название и берите нужный коэффициент в 1 клик:</p>
+                                    <h2 className="text-lg font-bold text-white mb-2">⚽ Быстрая линия (Примеры матчей)</h2>
+                                    <p className="text-xs text-slate-400 mb-4">Нажмите на любой коэффициент или добавьте матч в экспресс:</p>
                                     <div className="space-y-3">
                                         {[
                                             { match: 'Реал Мадрид — Барселона', p1: '1.95', x: '3.50', p2: '3.80' },
@@ -320,7 +329,7 @@
                                         <div className="space-y-3 mb-4">
                                             {parlayBets.length === 0 ? (
                                                 <div className="text-center py-6 text-slate-500 text-sm bg-slate-950 rounded-xl border border-dashed border-slate-800">
-                                                    Нажимайте «+ Добавить в Экспресс» у любого матча или своего прогноза сверху
+                                                    Нажимайте «+ Добавить в Экспресс» у любого матча сверху
                                                 </div>
                                             ) : (
                                                 parlayBets.map((item) => (
@@ -440,16 +449,22 @@
                                                         <div className="font-bold text-sm text-white">{bet.match} — {bet.selection} <span className="text-emerald-400">({bet.odds})</span></div>
                                                     )}
 
-                                                    <div className="text-xs text-slate-400 mt-1">Сумма: <strong className="text-white">{bet.amount.toLocaleString()} ₽</strong> | Общий кэф: <strong className="text-white">{bet.odds}</strong> | Выигрыш: <strong className="text-emerald-400">{bet.potentialWin.toLocaleString()} ₽</strong></div>
+                                                    <div className="text-xs text-slate-400 mt-1">Сумма: <strong className="text-white">{bet.amount.toLocaleString()} ₽</strong> | Кэф: <strong className="text-white">{bet.odds}</strong> | Выигрыш: <strong className="text-emerald-400">{bet.potentialWin.toLocaleString()} ₽</strong></div>
                                                 </div>
 
-                                                {bet.type === 'Ординар' && bet.status === 'pending' && (
-                                                    <div className="flex items-center gap-2 w-full md:w-auto">
-                                                        <button onClick={() => resolveBet(bet.id, 'win')} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition">Прошло ✅</button>
-                                                        <button onClick={() => resolveBet(bet.id, 'loss')} className="flex-1 md:flex-none bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition">Мимо ❌</button>
-                                                        <button onClick={() => resolveBet(bet.id, 'return')} className="flex-1 md:flex-none bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition">Возврат 🔄</button>
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center gap-2 w-full md:w-auto">
+                                                    {bet.status === 'pending' && (
+                                                        <>
+                                                            <button onClick={() => resolveBet(bet.id, 'win')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition">Прошло ✅</button>
+                                                            <button onClick={() => resolveBet(bet.id, 'loss')} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition">Мимо ❌</button>
+                                                            <button onClick={() => resolveBet(bet.id, 'return')} className="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition">Возврат 🔄</button>
+                                                        </>
+                                                    )}
+                                                    {/* Кнопка удаления ставки */}
+                                                    <button onClick={() => deleteBet(bet.id)} className="bg-slate-800 hover:bg-red-600/30 hover:border-red-500 text-slate-400 hover:text-red-300 px-3 py-2 rounded-lg text-xs font-bold transition border border-slate-700" title="Удалить ставку">
+                                                        🗑️ Удалить
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
