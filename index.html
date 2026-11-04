@@ -1,0 +1,2486 @@
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import {
+  TrendingUp,
+  BookOpen,
+  ShieldAlert,
+  PlusCircle,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Trophy,
+  Flame,
+  BarChart3,
+  Percent,
+  Brain,
+  RotateCcw,
+  Trash2,
+  Sparkles,
+  Scale,
+  AlertTriangle,
+  Globe,
+  RefreshCw,
+  Eye,
+  NotebookPen,
+  X,
+  Dices,
+  Layers,
+  ChevronDown,
+  ChevronUp,
+  Zap,
+  Database,
+  Copy,
+  Download,
+  Upload,
+  Check
+} from 'lucide-react';
+
+// --- КАТАЛОГ ПОПУЛЯРНЫХ ВИДОВ СТАВОК ДЛЯ ВЫБОРА В 1 КЛИК ---
+const POPULAR_MARKETS_CATALOG = {
+  main: {
+    label: 'Основные исходы',
+    items: [
+      { code: 'П1', name: 'П1 (Победа 1)', defaultOdds: 1.85 },
+      { code: 'Х', name: 'Х (Ничья)', defaultOdds: 3.50 },
+      { code: 'П2', name: 'П2 (Победа 2)', defaultOdds: 2.15 },
+      { code: '1Х', name: '1Х (Первая не проиграет)', defaultOdds: 1.35 },
+      { code: '12', name: '12 (Ничьей не будет)', defaultOdds: 1.30 },
+      { code: 'Х2', name: 'Х2 (Вторая не проиграет)', defaultOdds: 1.48 }
+    ]
+  },
+  totals: {
+    label: 'Тоталы голов / очков',
+    items: [
+      { code: 'ТБ 1.5', name: 'ТБ (1.5)', defaultOdds: 1.32 },
+      { code: 'ТМ 1.5', name: 'ТМ (1.5)', defaultOdds: 3.20 },
+      { code: 'ТБ 2.0', name: 'ТБ (2.0) [Возврат при 2]', defaultOdds: 1.50 },
+      { code: 'ТМ 2.0', name: 'ТМ (2.0) [Возврат при 2]', defaultOdds: 2.55 },
+      { code: 'ТБ 2.5', name: 'ТБ (2.5)', defaultOdds: 1.90 },
+      { code: 'ТМ 2.5', name: 'ТМ (2.5)', defaultOdds: 1.90 },
+      { code: 'ТБ 3.0', name: 'ТБ (3.0) [Возврат при 3]', defaultOdds: 2.45 },
+      { code: 'ТМ 3.0', name: 'ТМ (3.0) [Возврат при 3]', defaultOdds: 1.55 },
+      { code: 'ТБ 3.5', name: 'ТБ (3.5)', defaultOdds: 3.10 },
+      { code: 'ТМ 3.5', name: 'ТМ (3.5)', defaultOdds: 1.36 }
+    ]
+  },
+  handicaps: {
+    label: 'Форы (Гандикапы)',
+    items: [
+      { code: 'Ф1 (0)', name: 'Фора 1 (0) [С подстраховкой]', defaultOdds: 1.55 },
+      { code: 'Ф2 (0)', name: 'Фора 2 (0) [С подстраховкой]', defaultOdds: 2.40 },
+      { code: 'Ф1 (-1)', name: 'Фора 1 (-1.0)', defaultOdds: 2.35 },
+      { code: 'Ф2 (+1)', name: 'Фора 2 (+1.0)', defaultOdds: 1.60 },
+      { code: 'Ф1 (-1.5)', name: 'Фора 1 (-1.5)', defaultOdds: 2.85 },
+      { code: 'Ф2 (+1.5)', name: 'Фора 2 (+1.5)', defaultOdds: 1.42 },
+      { code: 'Ф1 (+1.5)', name: 'Фора 1 (+1.5)', defaultOdds: 1.30 },
+      { code: 'Ф2 (-1.5)', name: 'Фора 2 (-1.5)', defaultOdds: 3.40 }
+    ]
+  },
+  special: {
+    label: 'Обе забьют и ИТБ',
+    items: [
+      { code: 'ОЗ: Да', name: 'Обе забьют: Да', defaultOdds: 1.75 },
+      { code: 'ОЗ: Нет', name: 'Обе забьют: Нет', defaultOdds: 2.05 },
+      { code: 'ИТБ1 (1.5)', name: 'ИТБ 1-й (1.5)', defaultOdds: 1.95 },
+      { code: 'ИТБ2 (1.5)', name: 'ИТБ 2-й (1.5)', defaultOdds: 2.45 },
+      { code: 'ИТБ1 (1.0)', name: 'ИТБ 1-й (1.0)', defaultOdds: 1.45 },
+      { code: 'ИТБ2 (1.0)', name: 'ИТБ 2-й (1.0)', defaultOdds: 1.75 },
+      { code: 'Гол в 1Т', name: 'Гол в 1-м тайме: Да', defaultOdds: 1.40 },
+      { code: 'ТБ 2.5 + ОЗ', name: 'ТБ (2.5) + Обе забьют', defaultOdds: 2.15 }
+    ]
+  }
+};
+
+const ALL_POPULAR_MARKETS = [
+  ...POPULAR_MARKETS_CATALOG.main.items,
+  ...POPULAR_MARKETS_CATALOG.totals.items,
+  ...POPULAR_MARKETS_CATALOG.handicaps.items,
+  ...POPULAR_MARKETS_CATALOG.special.items
+];
+
+// --- СТАРТОВАЯ ТРЕНИРОВОЧНАЯ ЛИНИЯ ---
+const INITIAL_TRAINING_MATCHES = [
+  {
+    id: 'tr_1',
+    sport: 'Футбол',
+    league: 'Англия. Премьер-Лига',
+    team1: 'Арсенал',
+    team2: 'Ливерпуль',
+    startTime: 'Сегодня, 20:30',
+    odds: { p1: 2.25, x: 3.55, p2: 3.10 },
+    extraMarkets: [
+      { code: '1Х', name: '1Х (Первая не проиграет)', odds: 1.38 },
+      { code: 'Х2', name: 'Х2 (Вторая не проиграет)', odds: 1.65 },
+      { code: 'ТБ 2.5', name: 'ТБ (2.5)', odds: 1.78 },
+      { code: 'ТМ 2.5', name: 'ТМ (2.5)', odds: 2.05 },
+      { code: 'ОЗ: Да', name: 'Обе забьют: Да', odds: 1.62 },
+      { code: 'ОЗ: Нет', name: 'Обе забьют: Нет', odds: 2.25 },
+      { code: 'Ф1 (0)', name: 'Фора 1 (0)', odds: 1.64 },
+      { code: 'Ф2 (0)', name: 'Фора 2 (0)', odds: 2.28 }
+    ],
+    contextNote: 'Обе команды забивали в 8 из 9 последних очных встреч.'
+  },
+  {
+    id: 'tr_2',
+    sport: 'Футбол',
+    league: 'Испания. Ла Лига',
+    team1: 'Реал Мадрид',
+    team2: 'Атлетико Мадрид',
+    startTime: 'Сегодня, 22:00',
+    odds: { p1: 1.85, x: 3.70, p2: 4.20 },
+    extraMarkets: [
+      { code: '1Х', name: '1Х (Первая не проиграет)', odds: 1.24 },
+      { code: 'Х2', name: 'Х2 (Вторая не проиграет)', odds: 1.98 },
+      { code: 'ТБ 2.5', name: 'ТБ (2.5)', odds: 1.92 },
+      { code: 'ТМ 2.5', name: 'ТМ (2.5)', odds: 1.88 },
+      { code: 'ОЗ: Да', name: 'Обе забьют: Да', odds: 1.80 },
+      { code: 'Ф1 (-1)', name: 'Фора 1 (-1.0)', odds: 2.55 },
+      { code: 'Ф2 (+1)', name: 'Фора 2 (+1.0)', odds: 1.52 },
+      { code: 'ИТБ1 (1.5)', name: 'ИТБ 1-й (1.5)', odds: 1.85 }
+    ],
+    contextNote: 'Мадридское дерби: 4 из 6 последних матчей закончились вничью в основное время.'
+  },
+  {
+    id: 'tr_3',
+    sport: 'Хоккей',
+    league: 'КХЛ. Регулярный чемпионат',
+    team1: 'СКА',
+    team2: 'ЦСКА',
+    startTime: 'Сегодня, 19:30',
+    odds: { p1: 2.10, x: 3.90, p2: 2.95 },
+    extraMarkets: [
+      { code: '1Х', name: '1Х (Первая не проиграет)', odds: 1.36 },
+      { code: 'Х2', name: 'Х2 (Вторая не проиграет)', odds: 1.68 },
+      { code: 'ТБ 4.5', name: 'ТБ (4.5) шайб', odds: 1.65 },
+      { code: 'ТМ 4.5', name: 'ТМ (4.5) шайб', odds: 2.20 },
+      { code: 'ТБ 5.5', name: 'ТБ (5.5) шайб', odds: 2.25 },
+      { code: 'Ф1 (0)', name: 'Фора 1 (0)', odds: 1.60 },
+      { code: 'Ф2 (0)', name: 'Фора 2 (0)', odds: 2.30 }
+    ],
+    contextNote: 'Армейское дерби, высокая реализация большинства у хозяев.'
+  },
+  {
+    id: 'tr_4',
+    sport: 'Киберспорт',
+    league: 'CS2. Premier Tier-1',
+    team1: 'Team Spirit',
+    team2: 'Natus Vincere',
+    startTime: 'Сегодня, 21:00',
+    odds: { p1: 1.68, x: null, p2: 2.18 },
+    extraMarkets: [
+      { code: 'ТБ 2.5 карт', name: 'Тотал карт ТБ (2.5)', odds: 1.95 },
+      { code: 'ТМ 2.5 карт', name: 'Тотал карт ТМ (2.5)', odds: 1.82 },
+      { code: 'Ф1 (-1.5)', name: 'Фора 1 (-1.5) по картам', odds: 2.90 },
+      { code: 'Ф2 (+1.5)', name: 'Фора 2 (+1.5) по картам', odds: 1.40 }
+    ],
+    contextNote: 'Матч формата Best of 3.'
+  }
+];
+
+// --- ДЕМО-ИСТОРИЯ ДЛЯ ПРИМЕРА ---
+const INITIAL_DEMO_BETS = [
+  {
+    id: 'b_101',
+    type: 'single',
+    sport: 'Футбол',
+    match: 'Бавария — Боруссия Д',
+    market: 'ТБ (2.5)',
+    odds: 1.65,
+    stake: 2000,
+    estimatedProb: 65,
+    status: 'won',
+    profit: 1300,
+    date: 'Вчера, 21:45',
+    reasoning: 'Высокая линия обороны у обеих команд, классический верх.',
+    lesson: 'Хороший выбор по статистике xG.'
+  },
+  {
+    id: 'b_102',
+    type: 'express',
+    sport: 'Экспресс (2 события)',
+    match: 'Экспресс из 2 событий',
+    market: 'П1 × ОЗ: Да',
+    odds: 3.15,
+    stake: 1500,
+    estimatedProb: 36,
+    status: 'won',
+    profit: 3225,
+    date: 'Вчера, 23:10',
+    legs: [
+      {
+        id: 'leg_1',
+        sport: 'Футбол',
+        match: 'Барселона — Севилья',
+        market: 'П1 (Победа 1)',
+        odds: 1.80,
+        status: 'won'
+      },
+      {
+        id: 'leg_2',
+        sport: 'Футбол',
+        match: 'Милан — Наполи',
+        market: 'Обе забьют: Да',
+        odds: 1.75,
+        status: 'won'
+      }
+    ],
+    reasoning: 'Два уверенных исхода на вечерний тур европейских лиг.',
+    lesson: 'Короткий экспресс из 2 событий (двойник) имеет умеренную маржу.'
+  }
+];
+
+const formatMoney = (amount) =>
+  new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Math.round(amount)) + ' ₽';
+
+// Вычисление скрытой маржи букмекера и честных вероятностей
+function analyzeBookmakerMargin(oddsObj) {
+  const { p1, x, p2 } = oddsObj;
+  const inv1 = p1 ? 1 / p1 : 0;
+  const invX = x ? 1 / x : 0;
+  const inv2 = p2 ? 1 / p2 : 0;
+  const sum = inv1 + invX + inv2;
+  const marginPercent = Math.max(0, (sum - 1) * 100);
+
+  return {
+    marginPercent: marginPercent.toFixed(2),
+    fairProb1: p1 ? ((inv1 / sum) * 100).toFixed(1) : 0,
+    fairProbX: x ? ((invX / sum) * 100).toFixed(1) : 0,
+    fairProb2: p2 ? ((inv2 / sum) * 100).toFixed(1) : 0
+  };
+}
+
+// Безопасное чтение сохраненного прогресса из браузера / window.name / URL
+function loadInitialSavedState() {
+  try {
+    // 1. Проверяем URL hash (#save=...)
+    const hash = window.location.hash || '';
+    if (hash.startsWith('#save=')) {
+      const rawCode = decodeURIComponent(hash.replace('#save=', '').trim());
+      const decoded = JSON.parse(decodeURIComponent(escape(atob(rawCode))));
+      if (decoded && Array.isArray(decoded.l)) {
+        return {
+          initialBankroll: Number(decoded.b) || 100000,
+          strategyMode: decoded.s || 'flat',
+          flatPercent: Number(decoded.f) || 2,
+          bets: decoded.l,
+          webhookUrl: decoded.w || ''
+        };
+      }
+    }
+
+    // 2. Проверяем localStorage
+    const rawLocal = localStorage.getItem('bettrainer_pro_state_v2');
+    if (rawLocal) {
+      const parsed = JSON.parse(rawLocal);
+      if (parsed && Array.isArray(parsed.bets)) {
+        return parsed;
+      }
+    }
+
+    // 3. Проверяем window.name (часто сохраняется внутри iframe при мягком переходе)
+    if (window.name && window.name.startsWith('BETTRAINER_STATE:')) {
+      const rawCode = window.name.replace('BETTRAINER_STATE:', '');
+      const decoded = JSON.parse(decodeURIComponent(escape(atob(rawCode))));
+      if (decoded && Array.isArray(decoded.l)) {
+        return {
+          initialBankroll: Number(decoded.b) || 100000,
+          strategyMode: decoded.s || 'flat',
+          flatPercent: Number(decoded.f) || 2,
+          bets: decoded.l,
+          webhookUrl: decoded.w || ''
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('Fallback state load warning:', e);
+  }
+  return null;
+}
+
+export default function App() {
+  const savedState = useMemo(() => loadInitialSavedState(), []);
+
+  // --- СОСТОЯНИЕ ВИРТУАЛЬНОГО БАНКРОЛЛА И СТРАТЕГИИ ---
+  const [initialBankroll, setInitialBankroll] = useState(
+    savedState ? savedState.initialBankroll : 100000
+  );
+  const [strategyMode, setStrategyMode] = useState(
+    savedState ? savedState.strategyMode : 'flat'
+  ); // 'flat' | 'kelly' | 'free'
+  const [flatPercent, setFlatPercent] = useState(
+    savedState ? savedState.flatPercent : 2
+  );
+
+  // --- НАВИГАЦИЯ ---
+  const [activeTab, setActiveTab] = useState('trainer'); // 'trainer' | 'journal' | 'analytics' | 'sources'
+
+  // --- МАТЧИ И ИСТОЧНИКИ ---
+  const [matches, setMatches] = useState(INITIAL_TRAINING_MATCHES);
+  const [showBookieXray, setShowBookieXray] = useState(true);
+  const [expandedMatchIds, setExpandedMatchIds] = useState(['tr_1']);
+
+  // --- БЫСТРЫЙ КОНСТРУКТОР СТАВКИ ("ВЫБРАТЬ ВИД СТАВКИ + ВБИТЬ ТОЛЬКО КЭФ") ---
+  const [quickCategory, setQuickCategory] = useState('main');
+  const [quickMarket, setQuickMarket] = useState('П1 (Победа 1)');
+  const [quickOdds, setQuickOdds] = useState('1.85');
+  const [quickMatchTitle, setQuickMatchTitle] = useState('');
+  const [quickSport, setQuickSport] = useState('Футбол');
+  const oddsInputRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // --- КУПОН СТАВОК (ПОДДЕРЖКА ОРДИНАРОВ И ЭКСПРЕССОВ) ---
+  const [slipItems, setSlipItems] = useState([
+    {
+      id: 'leg_init_1',
+      matchId: 'tr_1',
+      sport: 'Футбол',
+      match: 'Арсенал — Ливерпуль',
+      market: 'Обе забьют: Да',
+      odds: 1.62
+    }
+  ]);
+  const [stakeAmount, setStakeAmount] = useState(2000);
+  const [estimatedProb, setEstimatedProb] = useState(65);
+  const [reasoningInput, setReasoningInput] = useState('');
+
+  // --- ИСТОРИЯ СТАВОК (ДНЕВНИК КАПЕРА) ---
+  const [bets, setBets] = useState(savedState ? savedState.bets : INITIAL_DEMO_BETS);
+  const [journalFilter, setJournalFilter] = useState('all'); // 'all' | 'pending' | 'won' | 'lost' | 'push'
+
+  // --- ПОДКЛЮЧЕНИЕ THE ODDS API ---
+  const [oddsApiKey, setOddsApiKey] = useState('');
+  const [oddsSportKey, setOddsSportKey] = useState('soccer_epl');
+  const [isFetchingOdds, setIsFetchingOdds] = useState(false);
+
+  // --- МОДАЛКА СБРОСА БАНКА ---
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [newBankInput, setNewBankInput] = useState(100000);
+
+  // --- МОДАЛКА СОХРАНЕНИЯ И GOOGLE SITES СИНХРОНИЗАЦИИ ---
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const [saveCodeString, setSaveCodeString] = useState('');
+  const [importCodeString, setImportCodeString] = useState('');
+  const [webhookUrl, setWebhookUrl] = useState(savedState?.webhookUrl || '');
+  const [isWebhookSyncing, setIsWebhookSyncing] = useState(false);
+  const [copiedCodeBadge, setCopiedCodeBadge] = useState(false);
+
+  // --- УВЕДОМЛЕНИЯ ---
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (title, message, type = 'info') => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [{ id, title, message, type }, ...prev.slice(0, 3)]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4500);
+  };
+
+  // --- АВТОМАТИЧЕСКОЕ СОХРАНЕНИЕ ПРОГРЕССА (LOCALSTORAGE + WINDOW.NAME + КОД СОХРАНЕНИЯ + GOOGLE ТАБЛИЦА) ---
+  useEffect(() => {
+    try {
+      // 1. Сохраняем в localStorage (для обычных вкладок)
+      const fullState = {
+        initialBankroll,
+        strategyMode,
+        flatPercent,
+        bets,
+        webhookUrl,
+        updatedAt: Date.now()
+      };
+      try {
+        localStorage.setItem('bettrainer_pro_state_v2', JSON.stringify(fullState));
+      } catch {
+        // Игнорируем блокировку localStorage в строгом iframe
+      }
+
+      // 2. Компактный Base64-код сохранения для Google Sites
+      const compactPayload = {
+        b: initialBankroll,
+        s: strategyMode,
+        f: flatPercent,
+        l: bets,
+        w: webhookUrl
+      };
+      const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(compactPayload))));
+      setSaveCodeString(encoded);
+
+      // 3. Сохраняем в window.name (переживает мягкое обновление внутри iframe)
+      try {
+        window.name = `BETTRAINER_STATE:${encoded}`;
+      } catch {
+        // ignore
+      }
+    } catch (e) {
+      console.error('State encoding error:', e);
+    }
+  }, [initialBankroll, strategyMode, flatPercent, bets, webhookUrl]);
+
+  // Отправка в Google Таблицу (Apps Script Webhook), если пользователь настроил ссылку
+  const triggerWebhookSync = async (overrides = {}) => {
+    const targetUrl = (overrides.webhookUrl !== undefined ? overrides.webhookUrl : webhookUrl).trim();
+    if (!targetUrl.startsWith('https://script.google.com')) return;
+
+    const payload = {
+      initialBankroll:
+        overrides.initialBankroll !== undefined ? overrides.initialBankroll : initialBankroll,
+      bets: overrides.bets !== undefined ? overrides.bets : bets,
+      strategyMode:
+        overrides.strategyMode !== undefined ? overrides.strategyMode : strategyMode,
+      flatPercent:
+        overrides.flatPercent !== undefined ? overrides.flatPercent : flatPercent,
+      updatedAt: Date.now()
+    };
+
+    try {
+      await fetch(targetUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+    } catch (err) {
+      console.error('Webhook POST error:', err);
+    }
+  };
+
+  // Копирование Кода Сохранения в 1 клик (работает внутри любого iframe Google Sites)
+  const handleCopySaveCode = () => {
+    try {
+      const tempInput = document.createElement('textarea');
+      tempInput.value = saveCodeString;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      setCopiedCodeBadge(true);
+      setTimeout(() => setCopiedCodeBadge(false), 2500);
+      addToast(
+        'Код сохранения скопирован!',
+        'Вставьте его при следующем входе на Google Сайт, чтобы за 1 секунду вернуть банк и ставки.',
+        'success'
+      );
+    } catch {
+      addToast('Скопируйте код вручную', 'Выделите строку в окне сохранения.', 'warning');
+    }
+  };
+
+  // Восстановление из вставленного Кода Сохранения
+  const handleApplySaveCode = () => {
+    if (!importCodeString.trim()) {
+      addToast('Вставьте код', 'Поле для кода восстановления пустое.', 'warning');
+      return;
+    }
+    try {
+      const cleaned = importCodeString.trim();
+      const decoded = JSON.parse(decodeURIComponent(escape(atob(cleaned))));
+      if (decoded && Array.isArray(decoded.l)) {
+        const nextBank = Number(decoded.b) || 100000;
+        const nextStrategy = decoded.s || 'flat';
+        const nextFlat = Number(decoded.f) || 2;
+        setInitialBankroll(nextBank);
+        setStrategyMode(nextStrategy);
+        setFlatPercent(nextFlat);
+        setBets(decoded.l);
+        if (decoded.w) setWebhookUrl(decoded.w);
+        setImportCodeString('');
+        setSyncModalOpen(false);
+        addToast(
+          '✅ Прогресс восстановлен!',
+          `Загружено ставок: ${decoded.l.length}, стартовый банк: ${formatMoney(nextBank)}.`,
+          'success'
+        );
+      } else {
+        throw new Error('Invalid code');
+      }
+    } catch {
+      addToast('Неверный код сохранения', 'Проверьте, что вы скопировали строку полностью.', 'error');
+    }
+  };
+
+  // Загрузка данных из Google Таблицы (Apps Script GET)
+  const handleLoadFromGoogleSheetWebhook = async () => {
+    if (!webhookUrl.trim().startsWith('https://script.google.com')) {
+      addToast(
+        'Укажите ссылку Apps Script',
+        'Вставьте URL вашего веб-приложения Google Apps Script.',
+        'warning'
+      );
+      return;
+    }
+    setIsWebhookSyncing(true);
+    try {
+      const res = await fetch(webhookUrl.trim());
+      const data = await res.json();
+      if (data && Array.isArray(data.bets)) {
+        setInitialBankroll(Number(data.initialBankroll) || 100000);
+        setBets(data.bets);
+        if (data.strategyMode) setStrategyMode(data.strategyMode);
+        if (data.flatPercent) setFlatPercent(Number(data.flatPercent));
+        setSyncModalOpen(false);
+        addToast(
+          'Загружено из Google Таблицы!',
+          `Ваш банкролл и ${data.bets.length} ставок синхронизированы.`,
+          'success'
+        );
+      } else {
+        addToast(
+          'Таблица пока пуста',
+          'Сделайте любую ставку, чтобы отправить первое сохранение в таблицу.',
+          'warning'
+        );
+      }
+    } catch {
+      addToast(
+        'Не удалось прочитать из таблицы',
+        'Убедитесь, что при развертывании Apps Script выбран доступ «Все (Anyone)».',
+        'error'
+      );
+    } finally {
+      setIsWebhookSyncing(false);
+    }
+  };
+
+  // Скачивание JSON-бэкапа
+  const handleExportBackup = () => {
+    const backupData = {
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      initialBankroll,
+      strategyMode,
+      flatPercent,
+      bets
+    };
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], {
+      type: 'application/json'
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `bettrainer-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    addToast('Файл сохранен', 'Резервная копия прогресса (.json) скачана.', 'success');
+  };
+
+  // Загрузка JSON-бэкапа
+  const handleImportBackup = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target.result);
+        if (parsed && Array.isArray(parsed.bets)) {
+          const nextBank = Number(parsed.initialBankroll) || 100000;
+          const nextStrategy = parsed.strategyMode || 'flat';
+          const nextFlat = Number(parsed.flatPercent) || 2;
+          setInitialBankroll(nextBank);
+          setStrategyMode(nextStrategy);
+          setFlatPercent(nextFlat);
+          setBets(parsed.bets);
+          triggerWebhookSync({
+            initialBankroll: nextBank,
+            bets: parsed.bets,
+            strategyMode: nextStrategy,
+            flatPercent: nextFlat
+          });
+          addToast(
+            'Бэкап восстановлен!',
+            `Загружено ставок: ${parsed.bets.length}.`,
+            'success'
+          );
+        }
+      } catch {
+        addToast('Ошибка файла', 'Выберите корректный JSON-файл резервной копии.', 'error');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  // --- РАСЧЕТ ПОКАЗАТЕЛЕЙ БАНКРОЛЛА И МЕТРИК КАПЕРА ---
+  const stats = useMemo(() => {
+    const settledBets = bets.filter((b) => b.status !== 'pending');
+    const pendingBets = bets.filter((b) => b.status === 'pending');
+
+    const netProfit = settledBets.reduce((acc, b) => acc + b.profit, 0);
+    const inPlayAmount = pendingBets.reduce((acc, b) => acc + b.stake, 0);
+    const currentBankroll = initialBankroll + netProfit - inPlayAmount;
+
+    const totalStakedSettled = settledBets.reduce((acc, b) => acc + b.stake, 0);
+    const yieldPercent = totalStakedSettled > 0 ? (netProfit / totalStakedSettled) * 100 : 0;
+
+    const wonBets = settledBets.filter((b) => b.status === 'won');
+    const lostBets = settledBets.filter((b) => b.status === 'lost');
+    const decisiveCount = wonBets.length + lostBets.length;
+    const winrate = decisiveCount > 0 ? (wonBets.length / decisiveCount) * 100 : 0;
+
+    const avgOdds =
+      settledBets.length > 0
+        ? settledBets.reduce((acc, b) => acc + Number(b.odds), 0) / settledBets.length
+        : 0;
+
+    // Статистика отдельно по Ординарам и Экспрессам
+    const singleSettled = settledBets.filter((b) => b.type !== 'express');
+    const expressSettled = settledBets.filter((b) => b.type === 'express');
+    const singleProfit = singleSettled.reduce((a, b) => a + b.profit, 0);
+    const expressProfit = expressSettled.reduce((a, b) => a + b.profit, 0);
+
+    // Кривая банкролла и расчет максимальной просадки (Max Drawdown)
+    const chronological = [...settledBets].reverse();
+    let runningBank = initialBankroll;
+    let peakBank = initialBankroll;
+    let maxDrawdown = 0;
+
+    const equityCurve = [{ step: 0, label: 'Старт', bank: initialBankroll }];
+    chronological.forEach((b, idx) => {
+      runningBank += b.profit;
+      if (runningBank > peakBank) peakBank = runningBank;
+      const dd = peakBank > 0 ? ((peakBank - runningBank) / peakBank) * 100 : 0;
+      if (dd > maxDrawdown) maxDrawdown = dd;
+      equityCurve.push({
+        step: idx + 1,
+        label: b.match.split('—')[0]?.trim() || `#${idx + 1}`,
+        bank: runningBank,
+        profit: b.profit
+      });
+    });
+
+    return {
+      currentBankroll,
+      netProfit,
+      inPlayAmount,
+      yieldPercent,
+      winrate,
+      avgOdds,
+      maxDrawdown,
+      settledCount: settledBets.length,
+      pendingCount: pendingBets.length,
+      wonCount: wonBets.length,
+      lostCount: lostBets.length,
+      singleCount: singleSettled.length,
+      expressCount: expressSettled.length,
+      singleProfit,
+      expressProfit,
+      equityCurve
+    };
+  }, [bets, initialBankroll]);
+
+  // --- ОБЩИЙ КОЭФФИЦИЕНТ КУПОНА (ДЛЯ ОРДИНАРА ИЛИ ЭКСПРЕССА) ---
+  const totalSlipOdds = useMemo(() => {
+    if (slipItems.length === 0) return 0;
+    const product = slipItems.reduce((acc, item) => acc * (Number(item.odds) || 1), 1);
+    return Number(product.toFixed(2));
+  }, [slipItems]);
+
+  const isExpressSlip = slipItems.length > 1;
+
+  // Автоматическая подстройка вероятности при изменении общего кэфа купона
+  useEffect(() => {
+    if (totalSlipOdds > 1.01) {
+      const implied = Math.min(95, Math.max(5, Math.round((1 / totalSlipOdds) * 100)));
+      setEstimatedProb(implied);
+    }
+  }, [totalSlipOdds]);
+
+  // --- МАТЕМАТИКА ВАЛУЙНОСТИ (+EV) И КРИТЕРИЯ КЕЛЛИ ---
+  const slipMath = useMemo(() => {
+    const odds = Number(totalSlipOdds) || 1;
+    const impliedProb = odds > 1 ? (1 / odds) * 100 : 0;
+    const p = Number(estimatedProb) / 100;
+    const b = odds - 1;
+
+    const evPercent = (p * odds - 1) * 100;
+    const rawKelly = b > 0 ? (p * odds - 1) / b : 0;
+    const halfKellyPercent = Math.max(0, rawKelly * 0.5 * 100);
+
+    const recommendedFlatRub = Math.round(
+      (stats.currentBankroll + stats.inPlayAmount) * (flatPercent / 100)
+    );
+    const recommendedKellyRub = Math.round(
+      (stats.currentBankroll + stats.inPlayAmount) * (halfKellyPercent / 100)
+    );
+
+    const stakeShareOfBank =
+      stats.currentBankroll > 0 ? (stakeAmount / stats.currentBankroll) * 100 : 0;
+
+    return {
+      impliedProb: impliedProb.toFixed(1),
+      evPercent: evPercent.toFixed(1),
+      isValue: evPercent > 0,
+      halfKellyPercent: halfKellyPercent.toFixed(1),
+      recommendedFlatRub,
+      recommendedKellyRub,
+      stakeShareOfBank: stakeShareOfBank.toFixed(1),
+      isTiltRisk: stakeShareOfBank > 5
+    };
+  }, [totalSlipOdds, estimatedProb, stats.currentBankroll, stats.inPlayAmount, flatPercent, stakeAmount]);
+
+  // Автоподстановка суммы при смене стратегии
+  useEffect(() => {
+    if (strategyMode === 'flat') {
+      setStakeAmount(Math.max(100, slipMath.recommendedFlatRub));
+    } else if (strategyMode === 'kelly') {
+      setStakeAmount(
+        slipMath.recommendedKellyRub > 0
+          ? slipMath.recommendedKellyRub
+          : Math.round(stats.currentBankroll * 0.01)
+      );
+    }
+  }, [strategyMode, flatPercent, slipMath.recommendedFlatRub, slipMath.recommendedKellyRub, stats.currentBankroll]);
+
+  // --- ДОБАВЛЕНИЕ / УДАЛЕНИЕ СОБЫТИЯ В КУПОН (ОРДИНАР ИЛИ ЭКСПРЕСС) ---
+  const toggleSelectionInSlip = (selection) => {
+    setSlipItems((prev) => {
+      const existingSameMatchIndex = prev.findIndex((item) => item.matchId === selection.matchId);
+      if (existingSameMatchIndex > -1) {
+        const existing = prev[existingSameMatchIndex];
+        if (existing.market === selection.market) {
+          return prev.filter((_, idx) => idx !== existingSameMatchIndex);
+        }
+        const updated = [...prev];
+        updated[existingSameMatchIndex] = { ...selection, id: existing.id };
+        return updated;
+      }
+      return [...prev, { ...selection, id: 'leg_' + Date.now() + Math.random() }];
+    });
+  };
+
+  // --- БЫСТРЫЙ КОНСТРУКТОР: ВЫБОР ПОПУЛЯРНОГО ВИДА СТАВКИ + ВВОД ТОЛЬКО КЭФА ---
+  const handleSelectPopularMarketButton = (item) => {
+    setQuickMarket(item.name);
+    setQuickOdds(String(item.defaultOdds));
+    setTimeout(() => {
+      if (oddsInputRef.current) {
+        oddsInputRef.current.focus();
+        oddsInputRef.current.select();
+      }
+    }, 30);
+  };
+
+  const handleQuickAddToSlip = (mode = 'append') => {
+    const parsedOdds = Number(String(quickOdds).replace(',', '.'));
+    if (!parsedOdds || parsedOdds <= 1.01) {
+      addToast('Проверьте коэффициент', 'Введите коэффициент больше 1.01 (например, 1.85).', 'warning');
+      return;
+    }
+
+    const matchName = quickMatchTitle.trim()
+      ? quickMatchTitle.trim()
+      : `Матч #${slipItems.length + bets.length + 1} (${quickSport})`;
+
+    const newLeg = {
+      id: 'leg_' + Date.now() + Math.random(),
+      matchId: 'custom_' + Date.now() + Math.random(),
+      sport: quickSport,
+      match: matchName,
+      market: quickMarket,
+      odds: Number(parsedOdds.toFixed(2))
+    };
+
+    if (mode === 'replace') {
+      setSlipItems([newLeg]);
+      addToast('Ординар в купоне', `${newLeg.market} (кэф ${newLeg.odds}) готов к ставке.`, 'info');
+    } else {
+      setSlipItems((prev) => [...prev, newLeg]);
+      addToast(
+        slipItems.length >= 1 ? 'Добавлено в Экспресс!' : 'Добавлено в купон!',
+        `${newLeg.match}: ${newLeg.market} @ ${newLeg.odds}`,
+        'success'
+      );
+    }
+    setQuickMatchTitle('');
+  };
+
+  const handleUpdateLegInSlip = (legId, field, value) => {
+    setSlipItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== legId) return item;
+        if (field === 'odds') {
+          const num = parseFloat(String(value).replace(',', '.'));
+          return { ...item, odds: isNaN(num) ? value : num };
+        }
+        return { ...item, [field]: value };
+      })
+    );
+  };
+
+  // --- ЗАКЛЮЧЕНИЕ ВИРТУАЛЬНОЙ СТАВКИ (ОРДИНАР ИЛИ ЭКСПРЕСС) ---
+  const handlePlaceTrainingBet = () => {
+    if (slipItems.length === 0) {
+      addToast('Купон пуст', 'Выберите вид ставки или нажмите на коэффициент в линии.', 'warning');
+      return;
+    }
+    if (totalSlipOdds <= 1.01) {
+      addToast('Некорректный кэф', 'Коэффициент должен быть выше 1.01.', 'warning');
+      return;
+    }
+    if (stakeAmount <= 0 || stakeAmount > stats.currentBankroll) {
+      addToast(
+        'Недостаточно виртуального банка',
+        `Доступно для ставки: ${formatMoney(stats.currentBankroll)}`,
+        'error'
+      );
+      return;
+    }
+
+    const isExpress = slipItems.length > 1;
+    const newBet = {
+      id: 'bet_' + Date.now(),
+      type: isExpress ? 'express' : 'single',
+      sport: isExpress ? `Экспресс (${slipItems.length} событ.)` : slipItems[0].sport,
+      match: isExpress
+        ? `Экспресс из ${slipItems.length} событий`
+        : slipItems[0].match,
+      market: isExpress
+        ? slipItems.map((i) => i.market.split(' ')[0]).join(' × ')
+        : slipItems[0].market,
+      odds: Number(totalSlipOdds),
+      stake: Number(stakeAmount),
+      estimatedProb: Number(estimatedProb),
+      status: 'pending',
+      profit: 0,
+      date: 'Только что',
+      legs: slipItems.map((leg) => ({
+        ...leg,
+        odds: Number(leg.odds) || 1.01,
+        status: 'pending'
+      })),
+      reasoning:
+        reasoningInput.trim() ||
+        (isExpress ? 'Тренировочный экспресс без описания.' : 'Без предматчевого описания.'),
+      lesson: ''
+    };
+
+    const nextBets = [newBet, ...bets];
+    setBets(nextBets);
+    triggerWebhookSync({ bets: nextBets });
+    setReasoningInput('');
+    setSlipItems([]);
+
+    addToast(
+      isExpress ? 'Экспресс зафиксирован!' : 'Ординар зафиксирован!',
+      `Сумма: ${formatMoney(stakeAmount)} | Итоговый кэф: ${totalSlipOdds.toFixed(2)}`,
+      'success'
+    );
+  };
+
+  // --- РАСЧЕТ СТАВКИ ВРУЧНУЮ ИЛИ ПО COБЫТИЯМ ВНУТРИ ЭКСПРЕССА ---
+  const handleSettleBet = (betId, outcome) => {
+    const nextBets = bets.map((b) => {
+      if (b.id !== betId || b.status !== 'pending') return b;
+
+      let finalOutcome = outcome;
+      if (outcome === 'simulate') {
+        const fairWinProb = Math.min(0.92, Math.max(0.05, (1 / b.odds) * 0.95));
+        finalOutcome = Math.random() < fairWinProb ? 'won' : 'lost';
+      }
+
+      let profit = 0;
+      if (finalOutcome === 'won') {
+        profit = Math.round(b.stake * (b.odds - 1));
+      } else if (finalOutcome === 'lost') {
+        profit = -b.stake;
+      } else if (finalOutcome === 'push') {
+        profit = 0;
+      }
+
+      const updatedLegs = b.legs
+        ? b.legs.map((l) => ({
+            ...l,
+            status: l.status === 'pending' ? finalOutcome : l.status
+          }))
+        : undefined;
+
+      addToast(
+        finalOutcome === 'won'
+          ? 'Ставка зашла! ✅'
+          : finalOutcome === 'lost'
+          ? 'Ставка не прошла ❌'
+          : 'Возврат (Расход) 🔄',
+        `${b.match}: ${profit >= 0 ? '+' : ''}${formatMoney(profit)}`,
+        finalOutcome === 'won' ? 'success' : finalOutcome === 'lost' ? 'error' : 'info'
+      );
+
+      return { ...b, status: finalOutcome, profit, legs: updatedLegs };
+    });
+
+    setBets(nextBets);
+    triggerWebhookSync({ bets: nextBets });
+  };
+
+  // Расчет отдельного события внутри Экспресса (с пересчетом кэфа при возврате)
+  const handleSettleExpressLeg = (betId, legId, legOutcome) => {
+    const nextBets = bets.map((b) => {
+      if (b.id !== betId || !b.legs) return b;
+
+      const updatedLegs = b.legs.map((l) =>
+        l.id === legId ? { ...l, status: legOutcome } : l
+      );
+
+      const effectiveOdds = updatedLegs.reduce((acc, l) => {
+        if (l.status === 'push') return acc * 1.0;
+        return acc * Number(l.odds);
+      }, 1);
+
+      const hasLost = updatedLegs.some((l) => l.status === 'lost');
+      const allSettled = updatedLegs.every((l) => l.status !== 'pending');
+      const allPush = updatedLegs.every((l) => l.status === 'push');
+
+      let nextStatus = 'pending';
+      let nextProfit = 0;
+
+      if (hasLost) {
+        nextStatus = 'lost';
+        nextProfit = -b.stake;
+        addToast('Экспресс проиграл ❌', `Одно из событий не прошло (${b.match}).`, 'error');
+      } else if (allSettled) {
+        if (allPush) {
+          nextStatus = 'push';
+          nextProfit = 0;
+        } else {
+          nextStatus = 'won';
+          nextProfit = Math.round(b.stake * (effectiveOdds - 1));
+          addToast(
+            'Экспресс доехал! 🔥',
+            `Все события рассчитаны! Чистый плюс: +${formatMoney(nextProfit)}`,
+            'success'
+          );
+        }
+      }
+
+      return {
+        ...b,
+        odds: Number(effectiveOdds.toFixed(2)),
+        legs: updatedLegs,
+        status: nextStatus,
+        profit: nextProfit
+      };
+    });
+
+    setBets(nextBets);
+    triggerWebhookSync({ bets: nextBets });
+  };
+
+  const handleUpdateLesson = (betId, lessonText) => {
+    const nextBets = bets.map((b) => (b.id === betId ? { ...b, lesson: lessonText } : b));
+    setBets(nextBets);
+    triggerWebhookSync({ bets: nextBets });
+  };
+
+  const handleDeleteBet = (betId) => {
+    const nextBets = bets.filter((b) => b.id !== betId);
+    setBets(nextBets);
+    triggerWebhookSync({ bets: nextBets });
+    addToast('Запись удалена', 'Ставка удалена из журнала.', 'info');
+  };
+
+  // --- СБРОС СЕЗОНА ---
+  const handleStartNewSeason = () => {
+    const cleanBank = Math.max(1000, Number(newBankInput) || 100000);
+    setInitialBankroll(cleanBank);
+    setBets([]);
+    triggerWebhookSync({ initialBankroll: cleanBank, bets: [] });
+    setResetModalOpen(false);
+    addToast('Новый сезон начат!', `Чистый виртуальный банкролл: ${formatMoney(cleanBank)}`, 'success');
+  };
+
+  // --- ЗАГРУЗКА РЕАЛЬНЫХ КОТИРОВОК ЧЕРЕЗ THE ODDS API ---
+  const handleFetchFromOddsApi = async () => {
+    if (!oddsApiKey.trim()) {
+      addToast('Введите API ключ', 'Получите бесплатный ключ на the-odds-api.com', 'warning');
+      return;
+    }
+    setIsFetchingOdds(true);
+    try {
+      const url = `https://api.the-odds-api.com/v4/sports/${oddsSportKey}/odds/?apiKey=${oddsApiKey.trim()}&regions=eu&markets=h2h`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Ошибка ответа API');
+      const data = await response.json();
+
+      const mapped = data.slice(0, 8).map((item, idx) => {
+        const outcomes = item.bookmakers?.[0]?.markets?.[0]?.outcomes || [];
+        const p1 = outcomes.find((o) => o.name === item.home_team)?.price || 1.95;
+        const p2 = outcomes.find((o) => o.name === item.away_team)?.price || 2.15;
+        const draw = outcomes.find((o) => o.name === 'Draw')?.price || null;
+
+        return {
+          id: 'api_' + idx + '_' + Date.now(),
+          sport: item.sport_title || 'Спорт',
+          league: item.sport_title || 'Международный турнир',
+          team1: item.home_team,
+          team2: item.away_team,
+          startTime: new Date(item.commence_time).toLocaleString('ru-RU', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+          odds: { p1, x: draw, p2 },
+          extraMarkets: [
+            { code: 'ТБ 2.5', name: 'ТБ (2.5)', odds: 1.88 },
+            { code: 'ТМ 2.5', name: 'ТМ (2.5)', odds: 1.92 },
+            { code: 'ОЗ: Да', name: 'Обе забьют: Да', odds: 1.76 },
+            { code: 'Ф1 (0)', name: 'Фора 1 (0)', odds: Number((p1 * 0.72).toFixed(2)) }
+          ],
+          contextNote: `Котировки загружены из ${item.bookmakers?.[0]?.title || 'EU Bookmaker'}`
+        };
+      });
+
+      if (mapped.length > 0) {
+        setMatches(mapped);
+        setActiveTab('trainer');
+        addToast('Линия обновлена!', `Загружено ${mapped.length} реальных матчей.`, 'success');
+      }
+    } catch {
+      addToast('Ошибка подключения', 'Проверьте ключ The Odds API.', 'error');
+    } finally {
+      setIsFetchingOdds(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0b1120] text-slate-100 font-sans selection:bg-emerald-500 selection:text-slate-950">
+      {/* ВСПЛЫВАЮЩИЕ ТОСТЫ */}
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={`pointer-events-auto p-3.5 rounded-2xl border backdrop-blur-md shadow-2xl flex items-start gap-3 transition-all ${
+              t.type === 'success'
+                ? 'bg-emerald-950/90 border-emerald-500/40 text-emerald-100'
+                : t.type === 'error'
+                ? 'bg-rose-950/90 border-rose-500/40 text-rose-100'
+                : t.type === 'warning'
+                ? 'bg-amber-950/90 border-amber-500/40 text-amber-100'
+                : 'bg-slate-900/95 border-slate-700 text-slate-100'
+            }`}
+          >
+            <Sparkles className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" />
+            <div className="flex-1 text-xs">
+              <div className="font-bold text-sm">{t.title}</div>
+              <div className="opacity-85 mt-0.5 leading-relaxed">{t.message}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ВЕРХНЯЯ ПАНЕЛЬ БАНКРОЛЛА И МЕТРИК КАПЕРА */}
+      <header className="sticky top-0 z-30 bg-[#0f172a]/95 backdrop-blur-md border-b border-slate-800/80">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+          {/* Бренд */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-slate-950 font-black">
+              <Brain className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-base sm:text-lg tracking-tight text-white">
+                  BET<span className="text-emerald-400">TRAINER</span>
+                </span>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  0 ₽ Реального риска
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 hidden sm:block">
+                Тренажер ставок, быстрый сбор экспрессов и учет виртуального банка
+              </p>
+            </div>
+          </div>
+
+          {/* Ключевые показатели */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="bg-[#1e293b] border border-slate-700/80 rounded-xl px-3 py-1.5">
+              <div className="text-[10px] uppercase tracking-wider text-slate-400">Виртуальный банк</div>
+              <div className="text-sm sm:text-base font-black text-white">
+                {formatMoney(stats.currentBankroll)}
+              </div>
+            </div>
+
+            <div className="bg-[#1e293b] border border-slate-700/80 rounded-xl px-3 py-1.5">
+              <div className="text-[10px] uppercase tracking-wider text-slate-400">Чистый профит</div>
+              <div
+                className={`text-sm sm:text-base font-black ${
+                  stats.netProfit > 0
+                    ? 'text-emerald-400'
+                    : stats.netProfit < 0
+                    ? 'text-rose-400'
+                    : 'text-slate-200'
+                }`}
+              >
+                {stats.netProfit > 0 ? '+' : ''}
+                {formatMoney(stats.netProfit)}
+              </div>
+            </div>
+
+            <div className="bg-[#1e293b] border border-slate-700/80 rounded-xl px-3 py-1.5 hidden md:block">
+              <div className="text-[10px] uppercase tracking-wider text-slate-400">Yield (ROI)</div>
+              <div
+                className={`text-sm sm:text-base font-black ${
+                  stats.yieldPercent > 0
+                    ? 'text-emerald-400'
+                    : stats.yieldPercent < 0
+                    ? 'text-rose-400'
+                    : 'text-slate-200'
+                }`}
+              >
+                {stats.yieldPercent > 0 ? '+' : ''}
+                {stats.yieldPercent.toFixed(1)}%
+              </div>
+            </div>
+
+            {/* Кнопки сохранения специально для Google Sites */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setSyncModalOpen(true)}
+                className="px-3 py-2 rounded-xl border bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/40 text-emerald-300 text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Сохранение истории для Google Сайтов (Код сохранения или Google Таблица)"
+              >
+                <Database className="w-4 h-4 text-emerald-400" />
+                <span>Сохранение (Google Sites)</span>
+              </button>
+
+              <button
+                onClick={handleCopySaveCode}
+                className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                title="Быстро скопировать Код Сохранения в буфер обмена"
+              >
+                {copiedCodeBadge ? (
+                  <Check className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">Код</span>
+              </button>
+
+              <button
+                onClick={handleExportBackup}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 p-2 rounded-xl transition-all cursor-pointer"
+                title="Скачать резервную копию (JSON)"
+              >
+                <Download className="w-4 h-4 text-emerald-400" />
+              </button>
+
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 p-2 rounded-xl transition-all cursor-pointer"
+                title="Загрузить резервную копию (JSON)"
+              >
+                <Upload className="w-4 h-4 text-sky-400" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImportBackup}
+                className="hidden"
+              />
+
+              <button
+                onClick={() => {
+                  setNewBankInput(initialBankroll);
+                  setResetModalOpen(true);
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold px-2.5 py-2 rounded-xl flex items-center gap-1 transition-all cursor-pointer"
+                title="Начать новый сезон или изменить размер виртуального банка"
+              >
+                <RotateCcw className="w-4 h-4 text-emerald-400" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* НАВИГАЦИОННЫЕ ВКЛАДКИ */}
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 flex items-center gap-1 overflow-x-auto border-t border-slate-800/60 py-1.5">
+          {[
+            { id: 'trainer', label: 'Тренажер и Экспрессы', icon: Zap },
+            {
+              id: 'journal',
+              label: `Дневник ставок (${bets.length})`,
+              icon: BookOpen,
+              badge: stats.pendingCount > 0 ? `${stats.pendingCount} в игре` : null
+            },
+            { id: 'analytics', label: 'Аналитика и Кривая банка', icon: BarChart3 },
+            { id: 'sources', label: 'Где брать реальные матчи?', icon: Globe }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
+                  active
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${
+                      active ? 'bg-slate-950 text-emerald-400' : 'bg-amber-500/20 text-amber-300'
+                    }`}
+                  >
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </header>
+
+      {/* ОСНОВНОЙ КОНТЕНТ */}
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-5 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* ЛЕВАЯ ЧАСТЬ (8 КОЛОНОК) */}
+        <div className="lg:col-span-8 space-y-5">
+          {/* ВКЛАДКА 1: ТРЕНАЖЕР, БЫСТРЫЙ ВЫБОР СТАВКИ И ЛИНИЯ */}
+          {activeTab === 'trainer' && (
+            <>
+              {/* БЛОК 1: КОНСТРУКТОР СТАВКИ В 2 КЛИКА (ВЫБРАТЬ ВИД СТАВКИ -> ВБИТЬ ТОЛЬКО КЭФ) */}
+              <div className="bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-emerald-500/30 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                      <Zap className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm sm:text-base font-black text-white">
+                        Быстрый конструктор: выберите вид ставки и вбейте только кэф
+                      </h2>
+                      <p className="text-[11px] text-slate-400">
+                        Кликните на готовый исход ниже, введите коэффициент и добавьте Ординаром или в Экспресс
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-800 text-emerald-400 border border-slate-700">
+                    В купоне сейчас: {slipItems.length} {slipItems.length === 1 ? 'событие' : 'события'}
+                  </span>
+                </div>
+
+                {/* Категории популярных исходов */}
+                <div className="flex flex-wrap gap-1.5 border-b border-slate-800 pb-2.5">
+                  {Object.entries(POPULAR_MARKETS_CATALOG).map(([key, cat]) => (
+                    <button
+                      key={key}
+                      onClick={() => setQuickCategory(key)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        quickCategory === key
+                          ? 'bg-emerald-500 text-slate-950 font-black shadow'
+                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Кнопки готовых исходов в выбранной категории */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {POPULAR_MARKETS_CATALOG[quickCategory].items.map((item) => {
+                    const isSelected = quickMarket === item.name;
+                    return (
+                      <button
+                        key={item.code}
+                        onClick={() => handleSelectPopularMarketButton(item)}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-emerald-500/20 border-emerald-400 text-white shadow-md shadow-emerald-500/10'
+                            : 'bg-[#0f172a]/90 border-slate-800 hover:border-slate-600 text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-black text-emerald-400">{item.code}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">~{item.defaultOdds}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-300 mt-1 line-clamp-1">{item.name}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Панель ввода ТОЛЬКО КЭФА (и опционально названия матча) */}
+                <div className="bg-[#0b1120] border border-slate-800 rounded-2xl p-3.5 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                    {/* Выбранный рынок */}
+                    <div className="sm:col-span-4">
+                      <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
+                        1. Выбранный вид ставки
+                      </label>
+                      <select
+                        value={quickMarket}
+                        onChange={(e) => setQuickMarket(e.target.value)}
+                        className="w-full bg-[#1e293b] border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        {ALL_POPULAR_MARKETS.map((m) => (
+                          <option key={m.name} value={m.name}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Ввод ТОЛЬКО коэффициента */}
+                    <div className="sm:col-span-3">
+                      <label className="block text-[10px] uppercase font-bold text-emerald-400 mb-1">
+                        2. Вбейте кэф БК
+                      </label>
+                      <input
+                        ref={oddsInputRef}
+                        type="number"
+                        step="0.01"
+                        min="1.01"
+                        value={quickOdds}
+                        onChange={(e) => setQuickOdds(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleQuickAddToSlip('append');
+                        }}
+                        placeholder="1.85"
+                        className="w-full bg-[#1e293b] border-2 border-emerald-500/70 rounded-xl px-3 py-2 text-base font-black text-emerald-300 focus:outline-none focus:border-emerald-400"
+                      />
+                    </div>
+
+                    {/* Название матча (необязательно!) */}
+                    <div className="sm:col-span-5">
+                      <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
+                        3. Матч (необязательно — можно оставить пустым)
+                      </label>
+                      <input
+                        type="text"
+                        value={quickMatchTitle}
+                        onChange={(e) => setQuickMatchTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleQuickAddToSlip('append');
+                        }}
+                        placeholder="Авто-название или впишите команды"
+                        className="w-full bg-[#1e293b] border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Быстрые кнопки коэффициентов + кнопки добавления в Ординар или Экспресс */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="text-[10px] text-slate-400 mr-1">Быстрый кэф:</span>
+                      {[1.45, 1.65, 1.80, 1.90, 2.10, 2.50, 3.00].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setQuickOdds(String(preset.toFixed(2)))}
+                          className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                            Number(quickOdds) === preset
+                              ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300'
+                              : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          {preset.toFixed(2)}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAddToSlip('replace')}
+                        className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600 text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Сделать Ординаром
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAddToSlip('append')}
+                        className="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                        <span>+ Добавить в Экспресс</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* БЛОК 2: АКТИВНЫЕ ПАРИ (С ПОШАГОВЫМ РАСЧЕТОМ ЭКСПРЕССОВ) */}
+              {stats.pendingCount > 0 && (
+                <div className="bg-[#1e293b]/90 border border-amber-500/40 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Flame className="w-4 h-4 text-amber-400" />
+                      <h3 className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-amber-300">
+                        Нерассчитанные ставки ({stats.pendingCount}) — отметьте исход
+                      </h3>
+                    </div>
+                    <span className="text-xs text-slate-400">
+                      В игре: <strong className="text-white">{formatMoney(stats.inPlayAmount)}</strong>
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {bets
+                      .filter((b) => b.status === 'pending')
+                      .map((bet) => (
+                        <div
+                          key={bet.id}
+                          className="bg-[#0f172a] border border-slate-800 rounded-xl p-3.5 space-y-3"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
+                                    bet.type === 'express'
+                                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                      : 'bg-slate-800 text-emerald-400'
+                                  }`}
+                                >
+                                  {bet.type === 'express' ? 'ЭКСПРЕСС' : 'ОРДИНАР'}
+                                </span>
+                                <span className="text-xs font-bold text-white">{bet.match}</span>
+                              </div>
+                              <div className="text-xs text-slate-300 mt-1">
+                                Исход: <strong className="text-emerald-400">{bet.market}</strong> • Итоговый кэф:{' '}
+                                <strong className="text-white">{Number(bet.odds).toFixed(2)}</strong> • Сумма:{' '}
+                                <strong className="text-white">{formatMoney(bet.stake)}</strong> (Выплата:{' '}
+                                <strong className="text-emerald-300">
+                                  {formatMoney(bet.stake * bet.odds)}
+                                </strong>
+                                )
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={() => handleSettleBet(bet.id, 'won')}
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold cursor-pointer"
+                              >
+                                Весь купон ✅
+                              </button>
+                              <button
+                                onClick={() => handleSettleBet(bet.id, 'lost')}
+                                className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold cursor-pointer"
+                              >
+                                Мимо ❌
+                              </button>
+                              <button
+                                onClick={() => handleSettleBet(bet.id, 'push')}
+                                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold cursor-pointer"
+                              >
+                                Возврат 🔄
+                              </button>
+                              <button
+                                onClick={() => handleSettleBet(bet.id, 'simulate')}
+                                className="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                                title="Мгновенно разыграть исход по математической вероятности"
+                              >
+                                <Dices className="w-3.5 h-3.5" />
+                                <span>Симул.</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Если это ЭКСПРЕСС — показываем каждое событие отдельно */}
+                          {bet.type === 'express' && bet.legs && (
+                            <div className="border-t border-slate-800/80 pt-2.5 space-y-1.5">
+                              <div className="text-[10px] uppercase font-bold text-slate-400">
+                                События внутри экспресса (можно рассчитывать по очереди):
+                              </div>
+                              {bet.legs.map((leg, idx) => (
+                                <div
+                                  key={leg.id || idx}
+                                  className="flex flex-wrap items-center justify-between gap-2 bg-[#1e293b]/60 px-3 py-1.5 rounded-lg text-xs"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-slate-500 font-bold">#{idx + 1}</span>
+                                    <span className="text-slate-200 font-semibold">{leg.match}</span>
+                                    <span className="text-emerald-400 font-bold">{leg.market}</span>
+                                    <span className="text-white font-mono bg-slate-800 px-1.5 py-0.5 rounded">
+                                      @{Number(leg.odds).toFixed(2)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {leg.status === 'pending' ? (
+                                      <>
+                                        <button
+                                          onClick={() => handleSettleExpressLeg(bet.id, leg.id, 'won')}
+                                          className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[11px] font-bold hover:bg-emerald-500/30 cursor-pointer"
+                                        >
+                                          ✅ Прошло
+                                        </button>
+                                        <button
+                                          onClick={() => handleSettleExpressLeg(bet.id, leg.id, 'lost')}
+                                          className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[11px] font-bold hover:bg-rose-500/30 cursor-pointer"
+                                        >
+                                          ❌
+                                        </button>
+                                        <button
+                                          onClick={() => handleSettleExpressLeg(bet.id, leg.id, 'push')}
+                                          className="px-2 py-0.5 rounded bg-slate-700 text-slate-300 text-[11px] font-bold hover:bg-slate-600 cursor-pointer"
+                                          title="Возврат по событию (рассчитывается с кэфом 1.00)"
+                                        >
+                                          🔄 1.0
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <span
+                                        className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                                          leg.status === 'won'
+                                            ? 'bg-emerald-500/20 text-emerald-300'
+                                            : leg.status === 'lost'
+                                            ? 'bg-rose-500/20 text-rose-300'
+                                            : 'bg-slate-700 text-slate-300'
+                                        }`}
+                                      >
+                                        {leg.status === 'won'
+                                          ? '✅ Зашло'
+                                          : leg.status === 'lost'
+                                          ? '❌ Мимо'
+                                          : '🔄 Возврат (кэф 1.0)'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* БЛОК 3: ТРЕНИРОВОЧНАЯ ЛИНИЯ С РАСКРЫВАЮЩЕЙСЯ РОСПИСЬЮ (ФОРЫ, ТОТАЛЫ, ОЗ) */}
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-[#1e293b]/70 border border-slate-800 rounded-2xl p-3.5">
+                <div>
+                  <h2 className="text-sm sm:text-base font-extrabold text-white">
+                    Готовая линия матчей (кликните на несколько исходов для Экспресса)
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Нажмите «+ Все виды ставок» у любого матча, чтобы выбрать тоталы, форы или «Обе забьют»
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowBookieXray(!showBookieXray)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                    showBookieXray
+                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>{showBookieXray ? 'Маржа БК: ВКЛ' : 'Показать маржу БК'}</span>
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {matches.map((m) => {
+                  const xray = analyzeBookmakerMargin(m.odds);
+                  const isExpanded = expandedMatchIds.includes(m.id);
+                  const matchTitle = `${m.team1} — ${m.team2}`;
+
+                  const isMarketSelected = (marketName) =>
+                    slipItems.some((item) => item.matchId === m.id && item.market === marketName);
+
+                  const toggleExpand = () => {
+                    setExpandedMatchIds((prev) =>
+                      prev.includes(m.id) ? prev.filter((id) => id !== m.id) : [...prev, m.id]
+                    );
+                  };
+
+                  return (
+                    <div
+                      key={m.id}
+                      className="bg-[#1e293b] border border-slate-800 hover:border-slate-700 rounded-2xl p-4 transition-all space-y-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-bold">
+                            {m.sport}
+                          </span>
+                          <span>{m.league}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {showBookieXray && (
+                            <span className="px-2 py-0.5 rounded-md bg-indigo-950/90 border border-indigo-500/30 text-indigo-300 font-semibold">
+                              Маржа БК: {xray.marginPercent}%
+                            </span>
+                          )}
+                          <span className="text-slate-400">{m.startTime}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="text-base sm:text-lg font-black text-white">
+                            {m.team1} <span className="text-slate-500 font-normal">—</span> {m.team2}
+                          </div>
+                          {m.contextNote && (
+                            <p className="text-xs text-slate-400 leading-relaxed">{m.contextNote}</p>
+                          )}
+                        </div>
+
+                        {/* Основные исходы 1 X 2 + Кнопка раскрытия полной росписи */}
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {[
+                            {
+                              key: 'p1',
+                              label: 'П1',
+                              marketName: 'П1 (Победа 1)',
+                              odd: m.odds.p1,
+                              fair: xray.fairProb1
+                            },
+                            ...(m.odds.x
+                              ? [
+                                  {
+                                    key: 'x',
+                                    label: 'X',
+                                    marketName: 'Х (Ничья)',
+                                    odd: m.odds.x,
+                                    fair: xray.fairProbX
+                                  }
+                                ]
+                              : []),
+                            {
+                              key: 'p2',
+                              label: 'П2',
+                              marketName: 'П2 (Победа 2)',
+                              odd: m.odds.p2,
+                              fair: xray.fairProb2
+                            }
+                          ].map((btn) => {
+                            const selected = isMarketSelected(btn.marketName);
+                            return (
+                              <button
+                                key={btn.key}
+                                onClick={() =>
+                                  toggleSelectionInSlip({
+                                    matchId: m.id,
+                                    sport: m.sport,
+                                    match: matchTitle,
+                                    market: btn.marketName,
+                                    odds: btn.odd
+                                  })
+                                }
+                                className={`min-w-[82px] px-3 py-2 rounded-xl border text-left transition-all cursor-pointer ${
+                                  selected
+                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-lg shadow-emerald-500/20'
+                                    : 'bg-[#0f172a] hover:bg-slate-800 text-slate-100 border-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between text-[11px] opacity-75">
+                                  <span>{btn.label}</span>
+                                  {showBookieXray && <span>{btn.fair}%</span>}
+                                </div>
+                                <div className="text-sm font-black mt-0.5">
+                                  {Number(btn.odd).toFixed(2)}
+                                </div>
+                              </button>
+                            );
+                          })}
+
+                          <button
+                            onClick={toggleExpand}
+                            className={`px-3 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                              isExpanded
+                                ? 'bg-slate-800 border-emerald-500/50 text-emerald-400'
+                                : 'bg-[#0f172a] border-slate-800 text-slate-300 hover:text-white'
+                            }`}
+                          >
+                            <span>+ Все виды ставок</span>
+                            {isExpanded ? (
+                              <ChevronUp className="w-4 h-4" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Раскрывающаяся роспись: Тоталы, Форы, Обе забьют */}
+                      {isExpanded && (
+                        <div className="pt-3 border-t border-slate-800/80 space-y-3">
+                          <div className="text-[11px] font-bold text-slate-400">
+                            Дополнительные исходы (нажмите, чтобы добавить в Ординар или Экспресс):
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {(m.extraMarkets || []).map((em) => {
+                              const selected = isMarketSelected(em.name);
+                              return (
+                                <button
+                                  key={em.code}
+                                  onClick={() =>
+                                    toggleSelectionInSlip({
+                                      matchId: m.id,
+                                      sport: m.sport,
+                                      match: matchTitle,
+                                      market: em.name,
+                                      odds: em.odds
+                                    })
+                                  }
+                                  className={`px-3 py-2 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                                    selected
+                                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black'
+                                      : 'bg-[#0f172a] hover:bg-slate-800/90 text-slate-200 border-slate-800'
+                                  }`}
+                                >
+                                  <span className="text-xs font-bold truncate pr-2">{em.code}</span>
+                                  <span className="text-xs font-black font-mono">
+                                    {Number(em.odds).toFixed(2)}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* ВКЛАДКА 2: ДНЕВНИК СТАВОК */}
+          {activeTab === 'journal' && (
+            <div className="space-y-4">
+              <div className="bg-[#1e293b] border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-extrabold text-white">
+                    Дневник капера и работа над ошибками
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Записывайте выводы после каждого ординара и экспресса
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'all', label: 'Все' },
+                    { id: 'pending', label: 'В игре' },
+                    { id: 'won', label: 'Выигрыши' },
+                    { id: 'lost', label: 'Проигрыши' },
+                    { id: 'push', label: 'Возвраты' }
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => setJournalFilter(f.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer ${
+                        journalFilter === f.id
+                          ? 'bg-emerald-500 text-slate-950'
+                          : 'bg-[#0f172a] text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {bets
+                  .filter((b) => journalFilter === 'all' || b.status === journalFilter)
+                  .map((bet) => (
+                    <div
+                      key={bet.id}
+                      className="bg-[#1e293b] border border-slate-800 rounded-2xl p-4 space-y-3"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
+                                bet.status === 'won'
+                                  ? 'bg-emerald-500/20 text-emerald-300'
+                                  : bet.status === 'lost'
+                                  ? 'bg-rose-500/20 text-rose-300'
+                                  : bet.status === 'push'
+                                  ? 'bg-slate-700 text-slate-300'
+                                  : 'bg-amber-500/20 text-amber-300'
+                              }`}
+                            >
+                              {bet.status === 'won'
+                                ? 'Выигрыш'
+                                : bet.status === 'lost'
+                                ? 'Проигрыш'
+                                : bet.status === 'push'
+                                ? 'Возврат'
+                                : 'В игре'}
+                            </span>
+                            <span
+                              className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
+                                bet.type === 'express'
+                                  ? 'bg-purple-500/20 text-purple-300'
+                                  : 'bg-slate-800 text-slate-300'
+                              }`}
+                            >
+                              {bet.type === 'express' ? 'Экспресс' : 'Ординар'}
+                            </span>
+                            <span className="text-xs text-slate-400">{bet.date}</span>
+                          </div>
+                          <h3 className="text-sm sm:text-base font-black text-white mt-1">
+                            {bet.match}
+                          </h3>
+                          <div className="text-xs text-slate-300 mt-0.5">
+                            Ставка: <strong className="text-emerald-400">{bet.market}</strong> • Кэф:{' '}
+                            <strong>{Number(bet.odds).toFixed(2)}</strong> • Сумма:{' '}
+                            <strong>{formatMoney(bet.stake)}</strong>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`text-sm sm:text-base font-black ${
+                              bet.profit > 0
+                                ? 'text-emerald-400'
+                                : bet.profit < 0
+                                ? 'text-rose-400'
+                                : 'text-slate-300'
+                            }`}
+                          >
+                            {bet.status === 'pending'
+                              ? 'Ожидание'
+                              : `${bet.profit > 0 ? '+' : ''}${formatMoney(bet.profit)}`}
+                          </div>
+                          <button
+                            onClick={() => handleDeleteBet(bet.id)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-800 cursor-pointer"
+                            title="Удалить запись"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {bet.type === 'express' && bet.legs && (
+                        <div className="bg-[#0f172a] rounded-xl p-2.5 space-y-1 border border-slate-800">
+                          {bet.legs.map((leg, i) => (
+                            <div
+                              key={leg.id || i}
+                              className="flex items-center justify-between text-xs text-slate-300"
+                            >
+                              <span>
+                                {i + 1}. {leg.match} —{' '}
+                                <strong className="text-emerald-400">{leg.market}</strong>
+                              </span>
+                              <span className="font-mono font-bold">
+                                @{Number(leg.odds).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800/80 text-xs">
+                        <div className="bg-[#0f172a] p-3 rounded-xl border border-slate-800/80">
+                          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">
+                            Мысли ДО матча:
+                          </div>
+                          <div className="text-slate-200 leading-relaxed">{bet.reasoning}</div>
+                        </div>
+
+                        <div className="bg-[#0f172a] p-3 rounded-xl border border-slate-800/80">
+                          <div className="text-[10px] uppercase font-bold text-emerald-400 mb-1 flex items-center gap-1">
+                            <NotebookPen className="w-3 h-3" />
+                            <span>Вывод ПОСЛЕ матча:</span>
+                          </div>
+                          <input
+                            type="text"
+                            value={bet.lesson || ''}
+                            onChange={(e) => handleUpdateLesson(bet.id, e.target.value)}
+                            placeholder="Запишите урок (например: не брать экспрессы из 4+ ног)..."
+                            className="w-full bg-transparent text-slate-200 placeholder-slate-500 focus:outline-none border-b border-slate-800 focus:border-emerald-500 pb-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* ВКЛАДКА 3: АНАЛИТИКА И СРАВНЕНИЕ ОРДИНАРОВ ПРОТИВ ЭКСПРЕССОВ */}
+          {activeTab === 'analytics' && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-[#1e293b] border border-slate-800 rounded-2xl p-4">
+                  <div className="text-xs text-slate-400">Винрейт</div>
+                  <div className="text-xl font-black text-white mt-1">
+                    {stats.winrate.toFixed(1)}%
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    +{stats.wonCount} / -{stats.lostCount}
+                  </div>
+                </div>
+
+                <div className="bg-[#1e293b] border border-slate-800 rounded-2xl p-4">
+                  <div className="text-xs text-slate-400">Средний кэф</div>
+                  <div className="text-xl font-black text-emerald-400 mt-1">
+                    {stats.avgOdds.toFixed(2)}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1">По рассчитанным пари</div>
+                </div>
+
+                <div className="bg-[#1e293b] border border-slate-800 rounded-2xl p-4">
+                  <div className="text-xs text-slate-400">Профит Ординаров</div>
+                  <div
+                    className={`text-xl font-black mt-1 ${
+                      stats.singleProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    }`}
+                  >
+                    {stats.singleProfit > 0 ? '+' : ''}
+                    {formatMoney(stats.singleProfit)}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    Ставок: {stats.singleCount}
+                  </div>
+                </div>
+
+                <div className="bg-[#1e293b] border border-slate-800 rounded-2xl p-4">
+                  <div className="text-xs text-slate-400">Профит Экспрессов</div>
+                  <div
+                    className={`text-xl font-black mt-1 ${
+                      stats.expressProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    }`}
+                  >
+                    {stats.expressProfit > 0 ? '+' : ''}
+                    {formatMoney(stats.expressProfit)}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    Экспрессов: {stats.expressCount}
+                  </div>
+                </div>
+              </div>
+
+              {/* График движения банкролла */}
+              <div className="bg-[#1e293b] border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-extrabold text-white">
+                      Кривая вашего банкролла (Equity Curve)
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Наглядно показывает, растете ли вы на дистанции
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-400">
+                    Старт: {formatMoney(initialBankroll)}
+                  </span>
+                </div>
+
+                <div className="h-52 flex items-end gap-2 pt-6 pb-2 px-2 bg-[#0f172a] rounded-xl border border-slate-800 overflow-x-auto">
+                  {stats.equityCurve.map((pt) => {
+                    const maxVal = Math.max(...stats.equityCurve.map((x) => x.bank), initialBankroll * 1.1);
+                    const minVal = Math.min(...stats.equityCurve.map((x) => x.bank), initialBankroll * 0.8);
+                    const range = Math.max(1000, maxVal - minVal);
+                    const heightPct = Math.max(
+                      12,
+                      Math.min(100, ((pt.bank - minVal) / range) * 85 + 12)
+                    );
+                    const isAboveStart = pt.bank >= initialBankroll;
+
+                    return (
+                      <div
+                        key={pt.step}
+                        className="flex-1 min-w-[38px] h-full flex flex-col justify-end items-center group"
+                      >
+                        <div className="text-[10px] text-slate-400 mb-1 opacity-80 group-hover:opacity-100 font-bold">
+                          {Math.round(pt.bank / 1000)}k
+                        </div>
+                        <div
+                          style={{ height: `${heightPct}%` }}
+                          className={`w-full max-w-[32px] rounded-t-lg transition-all ${
+                            isAboveStart
+                              ? 'bg-gradient-to-t from-emerald-600 to-emerald-400'
+                              : 'bg-gradient-to-t from-rose-600 to-rose-400'
+                          }`}
+                        />
+                        <div className="text-[10px] text-slate-500 mt-1 truncate max-w-[46px]">
+                          {pt.label}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ВКЛАДКА 4: ГДЕ БРАТЬ РЕАЛЬНЫЕ МАТЧИ */}
+          {activeTab === 'sources' && (
+            <div className="space-y-4">
+              <div className="bg-[#1e293b] border border-slate-800 rounded-2xl p-5 space-y-4">
+                <h2 className="text-base sm:text-lg font-black text-white">
+                  Автозагрузка реальных линий через The Odds API
+                </h2>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Вставьте бесплатный ключ с{' '}
+                  <span className="text-emerald-400 font-mono">the-odds-api.com</span>, чтобы загрузить реальные матчи дня:
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={oddsSportKey}
+                    onChange={(e) => setOddsSportKey(e.target.value)}
+                    className="bg-[#0f172a] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                  >
+                    <option value="soccer_epl">Футбол: АПЛ (Англия)</option>
+                    <option value="soccer_uefa_champs_league">Футбол: Лига Чемпионов</option>
+                    <option value="soccer_spain_la_liga">Футбол: Ла Лига</option>
+                    <option value="icehockey_nhl">Хоккей: NHL</option>
+                    <option value="basketball_nba">Баскетбол: NBA</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={oddsApiKey}
+                    onChange={(e) => setOddsApiKey(e.target.value)}
+                    placeholder="Ваш apiKey с the-odds-api.com"
+                    className="flex-1 bg-[#0f172a] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                  <button
+                    onClick={handleFetchFromOddsApi}
+                    disabled={isFetchingOdds}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isFetchingOdds ? 'animate-spin' : ''}`} />
+                    <span>Загрузить матчи</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ПРАВАЯ КОЛОНКА (4 КОЛОНКИ): КУПОН (ОРДИНАР / ЭКСПРЕСС) И РИСК-МЕНЕДЖМЕНТ */}
+        <div className="lg:col-span-4 space-y-5">
+          <div className="bg-[#1e293b] border border-slate-800 rounded-2xl p-4 sm:p-5 sticky top-28 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Layers className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-sm sm:text-base font-black text-white">
+                  {isExpressSlip
+                    ? `Экспресс (${slipItems.length} событ.)`
+                    : slipItems.length === 1
+                    ? 'Ординар (1 событие)'
+                    : 'Купон ставок'}
+                </h2>
+              </div>
+              {slipItems.length > 0 && (
+                <button
+                  onClick={() => setSlipItems([])}
+                  className="text-[11px] text-slate-400 hover:text-rose-400 font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Очистить</span>
+                </button>
+              )}
+            </div>
+
+            {/* Список выбранных исходов в купоне */}
+            {slipItems.length === 0 ? (
+              <div className="bg-[#0f172a] border border-dashed border-slate-700 rounded-xl p-5 text-center space-y-2">
+                <p className="text-xs text-slate-300 font-bold">В купоне пока нет исходов</p>
+                <p className="text-[11px] text-slate-400">
+                  Выберите популярный вид ставки сверху (и вбейте кэф) или нажмите на коэффициенты матчей слева.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {slipItems.map((leg, idx) => (
+                  <div
+                    key={leg.id}
+                    className="bg-[#0f172a] border border-slate-800 rounded-xl p-3 space-y-2 relative"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-xs font-bold text-white pr-5">
+                        <span className="text-emerald-400 mr-1">#{idx + 1}</span>
+                        {leg.match}
+                      </div>
+                      <button
+                        onClick={() =>
+                          setSlipItems((prev) => prev.filter((item) => item.id !== leg.id))
+                        }
+                        className="text-slate-500 hover:text-rose-400 cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Быстрая смена вида ставки и кэфа прямо внутри купона */}
+                    <div className="grid grid-cols-12 gap-2 items-center">
+                      <div className="col-span-8">
+                        <select
+                          value={leg.market}
+                          onChange={(e) => handleUpdateLegInSlip(leg.id, 'market', e.target.value)}
+                          className="w-full bg-[#1e293b] border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-bold text-emerald-300 focus:outline-none focus:border-emerald-500"
+                        >
+                          {!ALL_POPULAR_MARKETS.some((m) => m.name === leg.market) && (
+                            <option value={leg.market}>{leg.market}</option>
+                          )}
+                          {ALL_POPULAR_MARKETS.map((m) => (
+                            <option key={m.name} value={m.name}>
+                              {m.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-span-4">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="1.01"
+                          value={leg.odds}
+                          onChange={(e) => handleUpdateLegInSlip(leg.id, 'odds', e.target.value)}
+                          className="w-full bg-[#1e293b] border border-emerald-500/40 rounded-lg px-2 py-1 text-xs font-black text-white text-right focus:outline-none focus:border-emerald-400"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Итоговый коэффициент купона */}
+            {slipItems.length > 0 && (
+              <div className="bg-gradient-to-r from-emerald-950/60 to-slate-900 border border-emerald-500/30 rounded-xl p-3 flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] uppercase font-bold text-emerald-400">
+                    {isExpressSlip ? 'Перемноженный кэф экспресса' : 'Коэффициент ординара'}
+                  </div>
+                  {isExpressSlip && (
+                    <div className="text-[11px] text-slate-400 font-mono">
+                      {slipItems.map((i) => Number(i.odds).toFixed(2)).join(' × ')}
+                    </div>
+                  )}
+                </div>
+                <div className="text-xl font-black text-emerald-400">
+                  {totalSlipOdds.toFixed(2)}
+                </div>
+              </div>
+            )}
+
+            {/* Каалькулятор Валуйности (+EV) */}
+            {slipItems.length > 0 && (
+              <div className="bg-[#0f172a] border border-slate-800 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">Ваша оценка шанса захода:</span>
+                  <span className="font-black text-emerald-400">{estimatedProb}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="95"
+                  value={estimatedProb}
+                  onChange={(e) => setEstimatedProb(Number(e.target.value))}
+                  className="w-full accent-emerald-500 cursor-pointer"
+                />
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Вероятность БК: {slipMath.impliedProb}%</span>
+                  <span
+                    className={`font-bold ${
+                      slipMath.isValue ? 'text-emerald-400' : 'text-rose-400'
+                    }`}
+                  >
+                    EV: {slipMath.evPercent > 0 ? '+' : ''}
+                    {slipMath.evPercent}% {slipMath.isValue ? '(Валуй ✅)' : '(Минусовая ⚠️)'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Стратегия управления банком */}
+            <div className="space-y-2">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Стратегия расчета суммы
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { id: 'flat', label: 'Флэт %' },
+                  { id: 'kelly', label: 'Келли' },
+                  { id: 'free', label: 'Своя сумма' }
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    onClick={() => setStrategyMode(st.id)}
+                    className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      strategyMode === st.id
+                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black'
+                        : 'bg-[#0f172a] text-slate-400 border-slate-800 hover:text-white'
+                    }`}
+                  >
+                    {st.label}
+                  </button>
+                ))}
+              </div>
+
+              {strategyMode === 'flat' && (
+                <div className="flex items-center justify-between gap-1 pt-1">
+                  {[1, 2, 3, 5].map((pct) => (
+                    <button
+                      key={pct}
+                      onClick={() => setFlatPercent(pct)}
+                      className={`flex-1 py-1 rounded-lg text-xs font-bold border cursor-pointer ${
+                        flatPercent === pct
+                          ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                          : 'bg-[#0f172a] border-slate-800 text-slate-400'
+                      }`}
+                    >
+                      {pct}% ({formatMoney((stats.currentBankroll * pct) / 100)})
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Сумма ставки */}
+            <div>
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="text-slate-400 font-bold">Сумма виртуальной ставки (₽)</span>
+                <span
+                  className={`font-bold ${
+                    slipMath.isTiltRisk ? 'text-rose-400' : 'text-slate-400'
+                  }`}
+                >
+                  {slipMath.stakeShareOfBank}% от банка
+                </span>
+              </div>
+              <input
+                type="number"
+                value={stakeAmount}
+                onChange={(e) => {
+                  setStrategyMode('free');
+                  setStakeAmount(Number(e.target.value));
+                }}
+                className="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-3 py-2 text-sm font-black text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {slipMath.isTiltRisk && (
+              <div className="bg-rose-950/80 border border-rose-500/40 rounded-xl p-2.5 flex items-start gap-2 text-[11px] text-rose-200">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div>
+                  <strong>Риск тильта!</strong> Вы ставите {slipMath.stakeShareOfBank}% от банка на один купон.
+                </div>
+              </div>
+            )}
+
+            {/* Аргументация */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                Почему вы берете этот {isExpressSlip ? 'экспресс' : 'исход'}?
+              </label>
+              <textarea
+                rows={2}
+                value={reasoningInput}
+                onChange={(e) => setReasoningInput(e.target.value)}
+                placeholder="Короткая заметка для дневника..."
+                className="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 resize-none"
+              />
+            </div>
+
+            {/* Кнопка заключения пари */}
+            <div className="pt-1 border-t border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Потенциальный чистый плюс:</span>
+                <span className="text-sm font-black text-emerald-400">
+                  +{formatMoney(Math.max(0, stakeAmount * (totalSlipOdds - 1)))}
+                </span>
+              </div>
+
+              <button
+                onClick={handlePlaceTrainingBet}
+                disabled={slipItems.length === 0}
+                className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-40 text-slate-950 font-black text-xs sm:text-sm py-3 rounded-xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+              >
+                {isExpressSlip
+                  ? `Сделать Экспресс (${slipItems.length} событ. • Кэф ${totalSlipOdds.toFixed(2)})`
+                  : 'Сделать тренировочную ставку'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* МОДАЛКА СБРОСА СЕЗОНА */}
+      {resetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+          <div className="bg-[#1e293b] border border-slate-700 rounded-2xl max-w-md w-full p-5 space-y-4 relative shadow-2xl">
+            <button
+              onClick={() => setResetModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-400">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Начать новый сезон</h3>
+                <p className="text-xs text-slate-400">
+                  Задайте новый стартовый виртуальный банкролл
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                Размер стартового банка (₽)
+              </label>
+              <input
+                type="number"
+                value={newBankInput}
+                onChange={(e) => setNewBankInput(e.target.value)}
+                className="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-black text-white focus:outline-none focus:border-emerald-500"
+              />
+              <div className="flex gap-2 mt-2">
+                {[10000, 50000, 100000, 500000].map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => setNewBankInput(preset)}
+                    className="flex-1 py-1.5 rounded-lg bg-[#0f172a] hover:bg-slate-800 text-xs font-bold text-slate-300 border border-slate-800 cursor-pointer"
+                  >
+                    {preset / 1000}k ₽
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={handleStartNewSeason}
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm py-3 rounded-xl cursor-pointer"
+            >
+              Подтвердить и начать с чистого листа
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* МОДАЛКА СОХРАНЕНИЯ ПРОГРЕССА СПЕЦИАЛЬНО ДЛЯ GOOGLE SITES */}
+      {syncModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-[#1e293b] border border-emerald-500/40 rounded-2xl max-w-2xl w-full p-5 sm:p-6 space-y-5 relative shadow-2xl my-8">
+            <button
+              onClick={() => setSyncModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 shrink-0">
+                <Database className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-white">
+                  Сохранение прогресса на Google Сайтах (Google Sites)
+                </h3>
+                <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                  Google Sites запускает встроенный код в изолированном фрейме (sandbox), который очищает память браузера после закрытия вкладки. Используйте любой из <strong>2 надежных способов</strong> ниже:
+                </p>
+              </div>
+            </div>
+
+            {/* СПОСОБ 1: КОД СОХРАНЕНИЯ В 1 КЛИК */}
+            <div className="bg-[#0f172a] border border-emerald-500/40 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase px-2.5 py-0.5 rounded bg-emerald-500 text-slate-950">
+                  Способ №1 (Без настроек — за 2 секунды)
+                </span>
+                <span className="text-[11px] text-slate-400">Работает 100% в Google Sites</span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-emerald-400">
+                  Ваш текущий Код сохранения (в нем зашифрован ваш банк и все ставки):
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={saveCodeString}
+                    className="flex-1 bg-[#1e293b] border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-300 select-all"
+                  />
+                  <button
+                    onClick={handleCopySaveCode}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>Скопировать код</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                <label className="block text-[11px] font-bold text-sky-400">
+                  Восстановить прогресс (вставьте сохраненный ранее код сюда):
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={importCodeString}
+                    onChange={(e) => setImportCodeString(e.target.value)}
+                    placeholder="Вставьте скопированный код сохранения..."
+                    className="flex-1 bg-[#1e293b] border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-sky-400"
+                  />
+                  <button
+                    onClick={handleApplySaveCode}
+                    className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs shrink-0 cursor-pointer"
+                  >
+                    Восстановить
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* СПОСОБ 2: АВТОМАТИЧЕСКАЯ ПРИВЯЗКА К GOOGLE ТАБЛИЦЕ */}
+            <div className="bg-[#0f172a] border border-slate-800 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase px-2.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  Способ №2 (Полный автомат через вашу Google Таблицу)
+                </span>
+                <span className="text-[11px] text-slate-400">Настройка за 1 минуту</span>
+              </div>
+
+              <div className="bg-[#1e293b] p-3 rounded-xl border border-slate-700/80 text-[11px] text-slate-300 space-y-1.5">
+                <div>
+                  <strong>1.</strong> Создайте пустую Google Таблицу → нажмите <em>«Расширения» → «Apps Script»</em>.
+                </div>
+                <div>
+                  <strong>2.</strong> Вставьте этот мини-код и нажмите <em>«Начать развертывание» → «Веб-приложение» (Доступ: Все / Anyone)</em>:
+                </div>
+                <pre className="bg-[#0b1120] p-2.5 rounded-lg text-[10px] font-mono text-emerald-300 overflow-x-auto select-all">
+{`function doPost(e) {
+  PropertiesService.getScriptProperties().setProperty('STATE', e.postData.contents);
+  return ContentService.createTextOutput('OK');
+}
+function doGet() {
+  var data = PropertiesService.getScriptProperties().getProperty('STATE') || '{}';
+  return ContentService.createTextOutput(data).setMimeType(ContentService.MimeType.JSON);
+}`}
+                </pre>
+                <div>
+                  <strong>3.</strong> Вставьте полученную ссылку <code>https://script.google.com/macros/s/.../exec</code> ниже:
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  className="flex-1 bg-[#1e293b] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+                <button
+                  onClick={handleLoadFromGoogleSheetWebhook}
+                  disabled={isWebhookSyncing}
+                  className="px-4 py-2 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-xs shrink-0 cursor-pointer"
+                >
+                  {isWebhookSyncing ? 'Загрузка...' : 'Загрузить из Таблицы'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
